@@ -90,7 +90,7 @@ pub struct FileRecord {
     pub path: String,
     pub language: LanguageType,
     pub lines: Lines,
-    /// The part of `lines` inside Rust `#[cfg(test)]` items.
+    /// The part of `lines` inside Rust test-only items (`#[cfg(test)]`, `#[test]`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub inline_tests: Option<Lines>,
     /// The first lines carry a generated-code marker.
@@ -152,9 +152,8 @@ fn decode(bytes: &[u8]) -> Cow<'_, [u8]> {
 }
 
 fn rust_inline_tests(text: &[u8], whole: Lines) -> Option<Lines> {
-    if memmem::find(text, b"cfg(").is_none() || memmem::find(text, b"test").is_none() {
-        return None;
-    }
+    // Every test attribute contains "test"; most files can skip the scan.
+    memmem::find(text, b"test")?;
     let Some(regions) = rust_tests::test_regions(text) else {
         return Some(whole);
     };

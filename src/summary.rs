@@ -42,7 +42,7 @@ pub struct Part<'a> {
     pub path: &'a str,
     pub language: &'static str,
     pub category: Category,
-    /// Lines from Rust `#[cfg(test)]` items, split off their file.
+    /// Lines from inline Rust test items, split off their file.
     pub inline: bool,
     #[serde(flatten)]
     pub lines: Lines,
@@ -61,7 +61,7 @@ pub struct Summary<'a> {
     pub total: Totals,
     pub categories: BTreeMap<Category, CategoryTotals>,
     pub languages: BTreeMap<&'static str, Totals>,
-    /// Lines moved from production files to tests by the Rust `#[cfg(test)]` split.
+    /// Lines of inline Rust tests moved from production files to tests.
     pub inline_tests: Totals,
     pub skipped: Skips,
     #[serde(skip_serializing_if = "Vec::is_empty")]

@@ -1,4 +1,5 @@
-//! Finds Rust items compiled only for tests (`#[cfg(test)]`, `#[cfg(all(test, ..))]`).
+//! Finds Rust items compiled only for tests: `#[cfg(test)]`,
+//! `#[cfg(all(test, ..))]`, and test functions (`#[test]`, `#[tokio::test]`).
 //!
 //! This is a small lexer, not a parser: it skips comments, strings and char
 //! literals, tracks bracket depth, and ends an annotated item at its closing
@@ -56,7 +57,7 @@ pub fn test_regions(src: &[u8]) -> Option<Vec<(usize, usize)>> {
                     && depth == attr_depth
                 {
                     attr = None;
-                    if item.is_none() && is_test_cfg(&src[text..lexer.pos - 1]) {
+                    if item.is_none() && is_test_attr(&src[text..lexer.pos - 1]) {
                         if inner {
                             if depth == 0 {
                                 return None;
@@ -136,13 +137,14 @@ enum Token<'a> {
     Ident(&'a [u8]),
 }
 
-fn is_test_cfg(attr: &[u8]) -> bool {
+fn is_test_attr(attr: &[u8]) -> bool {
     let text: Vec<u8> = attr
         .iter()
         .copied()
         .filter(|b| !b.is_ascii_whitespace())
         .collect();
-    if text == b"cfg(test)" {
+    let name = text.split(|&b| b == b'(').next().unwrap_or_default();
+    if text == b"cfg(test)" || name == b"test" || name.ends_with(b"::test") {
         return true;
     }
     let Some(args) = text
@@ -342,10 +344,12 @@ struct S {
     b: Vec<u8>,
     c: u8,
 }
+#[tokio::test(flavor = "multi_thread")]
+async fn loose() {}
 "####;
         assert_eq!(
             test_regions(src.as_bytes()),
-            Some(vec![(3, 6), (8, 8), (11, 18), (21, 22)])
+            Some(vec![(3, 6), (8, 8), (11, 18), (21, 22), (25, 26)])
         );
         assert_eq!(test_regions(b"//! doc\n#![cfg(test)]\nfn x() {}\n"), None);
     }

@@ -26,9 +26,11 @@ Categories (every file gets exactly one; first matching rule wins):
   other        hidden files, JSON, YAML, TOML, INI, XML, SVG, plain text
   production   everything else
 
-Rust items marked #[cfg(test)] or #[cfg(all(test, ..))] inside production files
-count as tests; the file itself is still counted once, under production. Inline
-tests in other languages are not detected and stay in their file's category.
+Rust items marked #[cfg(test)], #[cfg(all(test, ..))] or #[test] (also
+#[tokio::test] and similar) inside production files count as tests, including
+ones written inside macros; the file itself is still counted once, under
+production. Inline tests in other languages are not detected and stay in their
+file's category.
 Path rules are heuristics, not proof: audit with --files, correct with --class.
 
 Remote repositories are downloaded as one tarball of the snapshot (no Git

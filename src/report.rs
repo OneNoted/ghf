@@ -36,12 +36,15 @@ pub enum Source {
 pub fn json(out: &mut impl Write, source: &Source, summary: &Summary) -> io::Result<()> {
     #[derive(Serialize)]
     struct Report<'a> {
+        /// Bumped on incompatible changes to this layout.
+        schema: u32,
         ghf: &'static str,
         source: &'a Source,
         #[serde(flatten)]
         summary: &'a Summary<'a>,
     }
     let report = Report {
+        schema: 1,
         ghf: env!("CARGO_PKG_VERSION"),
         source,
         summary,
@@ -200,7 +203,7 @@ pub fn text(source: &Source, summary: &Summary, width: Option<usize>) -> String 
                 .map(|p| {
                     let path = sanitize(p.path);
                     let path = if p.inline {
-                        format!("{path} (cfg(test))")
+                        format!("{path} (inline tests)")
                     } else {
                         path.into()
                     };
@@ -310,7 +313,7 @@ fn notes(summary: &Summary) -> Vec<String> {
     let inline = &summary.inline_tests;
     if inline.lines > 0 {
         notes.push(format!(
-            "tests include {} lines of #[cfg(test)] items in {} production Rust file{}",
+            "tests include {} lines of inline Rust tests from {} production file{}",
             inline.lines,
             inline.files,
             plural(inline.files)

@@ -23,7 +23,7 @@ use crate::{
     classify::Classifier,
     cli::{Cli, ColorWhen},
     count::{Counted, LIMITS},
-    github::{Client, Repo, describe_io, is_full_sha},
+    github::{Client, Repo, Snapshot, describe_io, is_full_sha},
     report::{Source, sanitize},
     summary::Summary,
     target::Target,
@@ -166,7 +166,16 @@ fn remote(
 
     let client = Client::new();
     log.note("auth", client.auth_source());
-    let snapshot = client.resolve(&repo, reference.as_deref())?;
+    let snapshot = match reference.as_deref() {
+        // Downloading by commit needs no lookup; the archive header is checked below.
+        Some(sha) if is_full_sha(sha) => Snapshot {
+            repo: repo.clone(),
+            label: sha.to_ascii_lowercase(),
+            default_branch: false,
+            commit: sha.to_ascii_lowercase(),
+        },
+        reference => client.resolve(&repo, reference)?,
+    };
     log.note(
         "resolved",
         format_args!(
@@ -203,6 +212,7 @@ fn remote(
             progress.bytes as f64 / 1048576.0
         ),
     );
+    // `git archive` records the commit; GitHub's tarballs carry it.
     if archive
         .commit
         .as_deref()
