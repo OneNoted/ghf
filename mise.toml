@@ -1,0 +1,14 @@
+[tools]
+rust = "nightly-2026-10-11"
+
+[tasks.check]
+description = "Format check, lint and test"
+run = [
+  "cargo fmt --check",
+  "cargo clippy --locked --all-targets -- -D warnings",
+  "cargo test --locked",
+]
+
+[tasks.release]
+description = "Build the optimized binary"
+run = "cargo build --locked --release"

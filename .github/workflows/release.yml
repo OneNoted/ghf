@@ -1,0 +1,93 @@
+name: release
+
+# Tag pushes (v1.2.3) publish a release; manual runs only build and upload artifacts.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  RUST_TOOLCHAIN: "1.98.1"
+  # Ubuntu 22.04 runners link against glibc 2.35, the oldest glibc the binaries need.
+  GLIBC_MAX: "2.35"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-22.04
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-22.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --component clippy,rustfmt
+          rustup default "$RUST_TOOLCHAIN"
+
+      - name: Check
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked
+
+      - name: Build
+        run: cargo build --locked --release
+
+      - name: Check glibc requirement
+        run: |
+          need=$(objdump -T target/release/ghf | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -n1)
+          echo "binary needs $need"
+          test "$(printf '%s\n' "${need#GLIBC_}" "$GLIBC_MAX" | sort -V | tail -n1)" = "$GLIBC_MAX"
+
+      - name: Package
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
+            echo "tag $GITHUB_REF_NAME does not match Cargo.toml version $version" >&2
+            exit 1
+          fi
+          name="ghf-$version-${{ matrix.target }}"
+          mkdir -p "dist/$name/completions"
+          cp target/release/ghf LICENSE README.md "dist/$name/"
+          bin="dist/$name/ghf"
+          "$bin" --completions bash > "dist/$name/completions/ghf.bash"
+          "$bin" --completions fish > "dist/$name/completions/ghf.fish"
+          "$bin" --completions zsh > "dist/$name/completions/_ghf"
+          "$bin" --version
+          tar -C dist -czf "dist/$name.tar.gz" "$name"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ matrix.target }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          sha256sum ghf-*.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "$GITHUB_REF_NAME" --generate-notes ghf-*.tar.gz SHA256SUMS
