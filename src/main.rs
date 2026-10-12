@@ -36,11 +36,16 @@ fn main() -> ExitCode {
         ColorWhen::Never => anstream::ColorChoice::Never.write_global(),
         ColorWhen::Auto => {}
     }
-    if let Some(shell) = cli.completions {
-        clap_complete::generate(shell, &mut Cli::command(), "ghf", &mut io::stdout());
-        return ExitCode::SUCCESS;
-    }
-    match run(&cli) {
+    let result = match cli.completions {
+        Some(shell) => {
+            // clap_complete panics on write errors; render first, then write.
+            let mut script = Vec::new();
+            clap_complete::generate(shell, &mut Cli::command(), "ghf", &mut script);
+            io::stdout().write_all(&script).map_err(Error::Io)
+        }
+        None => run(&cli),
+    };
+    match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(Error::Io(e)) if e.kind() == io::ErrorKind::BrokenPipe => ExitCode::SUCCESS,
         Err(e) => {
