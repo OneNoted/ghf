@@ -11,7 +11,7 @@ use std::{
     sync::{
         Condvar, LazyLock, Mutex,
         atomic::{AtomicU64, Ordering::Relaxed},
-        mpsc::sync_channel,
+        mpsc::{channel, sync_channel},
     },
     thread,
 };
@@ -456,7 +456,8 @@ impl<R: Read> Read for Limited<R> {
 /// Counts a local directory, honoring .gitignore, .ignore and .tokeignore like
 /// tokei, but including hidden files and skipping `.git`.
 pub fn count_dir(root: &Path, limits: &Limits) -> Counted {
-    let (tx, rx) = sync_channel::<ignore::DirEntry>(256);
+    // Unbounded like tokei: entries are small, and a full queue stalls the walker.
+    let (tx, rx) = channel::<ignore::DirEntry>();
     let unrecognized = AtomicU64::new(0);
     let too_large = AtomicU64::new(0);
     let links = AtomicU64::new(0);

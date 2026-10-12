@@ -77,9 +77,13 @@ impl Client {
         }
     }
 
-    /// Where the token came from, looking it up on first use.
+    /// Where the token came from, if one was needed so far.
     pub fn auth_source(&self) -> &'static str {
-        self.token().map_or("none", |t| t.source)
+        match self.token.get() {
+            None => "not needed",
+            Some(None) => "none",
+            Some(Some(token)) => token.source,
+        }
     }
 
     fn token(&self) -> Option<&Token> {
@@ -107,7 +111,7 @@ impl Client {
             .get(url)
             .header("Accept", accept)
             .header("X-GitHub-Api-Version", "2022-11-28");
-        if let Some(token) = self.token().filter(|_| auth) {
+        if let Some(token) = auth.then(|| self.token()).flatten() {
             request = request.header("Authorization", format!("Bearer {}", token.secret));
         }
         request.call().map_err(|e| describe(&e))
@@ -231,26 +235,24 @@ impl Client {
     /// Streams the snapshot tarball (tar.gz) of `commit`.
     pub fn download(&self, repo: &Repo, commit: &str) -> Result<impl Read + Send + use<>, String> {
         let what = format!("snapshot {commit} of {repo}");
-        // Anonymous downloads skip the API (and its rate limit). With a token the
-        // API redirects to a pre-authorized codeload URL; Authorization is dropped.
-        let response = match self.token() {
-            Some(_) => self.api(
+        // Public snapshots come straight from codeload: no token, no API rate
+        // limit. Private ones go through the API, which redirects to a
+        // pre-authorized codeload URL (the token is not forwarded there).
+        let url = format!(
+            "https://codeload.github.com/{}/{}/tar.gz/{commit}",
+            repo.owner, repo.name
+        );
+        let mut response = self.get(&url, "*/*", false)?;
+        if response.status() == StatusCode::NOT_FOUND && self.token().is_some() {
+            response = self.api(
                 &format!("/repos/{}/{}/tarball/{commit}", repo.owner, repo.name),
                 "application/vnd.github+json",
                 &what,
-            )?,
-            None => {
-                let url = format!(
-                    "https://codeload.github.com/{}/{}/tar.gz/{commit}",
-                    repo.owner, repo.name
-                );
-                let response = self.get(&url, "*/*", false)?;
-                match response.status() {
-                    StatusCode::OK => response,
-                    status => return Err(self.status_error(status, &response, &what)),
-                }
-            }
-        };
+            )?;
+        }
+        if response.status() != StatusCode::OK {
+            return Err(self.status_error(response.status(), &response, &what));
+        }
         Ok(response
             .into_body()
             .into_with_config()

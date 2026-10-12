@@ -165,7 +165,6 @@ fn remote(
     }
 
     let client = Client::new();
-    log.note("auth", client.auth_source());
     let snapshot = match reference.as_deref() {
         // Downloading by commit needs no lookup; the archive header is checked below.
         Some(sha) if is_full_sha(sha) => Snapshot {
@@ -205,6 +204,7 @@ fn remote(
     progress.clear();
     let archive =
         archive.map_err(|e| format!("downloading {}: {}", snapshot.repo, describe_io(&e)))?;
+    log.note("auth", client.auth_source());
     log.note(
         "fetched",
         format_args!(
