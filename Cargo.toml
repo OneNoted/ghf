@@ -1,6 +1,6 @@
 [package]
 name = "ghf"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Count code in GitHub repositories by language and category"
 license = "MIT"
@@ -26,6 +26,7 @@ tar = { version = "0.4.46", default-features = false }
 tempfile = "3.27.0"
 terminal_size = "0.4.4"
 tokei = { version = "15.0.0", default-features = false }
+unicode-width = "0.2.2"
 ureq = { version = "3.4.2", default-features = false, features = ["rustls"] }
 
 [profile.release]
