@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use tar::EntryType;
 use tokei::{CodeStats, Config, LanguageType};
 
-use crate::rust_tests;
+use crate::rust_inline;
 
 static CONFIG: LazyLock<Config> = LazyLock::new(Config::default);
 
@@ -154,7 +154,7 @@ fn decode(bytes: &[u8]) -> Cow<'_, [u8]> {
 fn rust_inline_tests(text: &[u8], whole: Lines) -> Option<Lines> {
     // Every test attribute contains "test"; most files can skip the scan.
     memmem::find(text, b"test")?;
-    let Some(regions) = rust_tests::test_regions(text) else {
+    let Some(regions) = rust_inline::test_regions(text) else {
         return Some(whole);
     };
     if regions.is_empty() {

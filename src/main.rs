@@ -4,7 +4,7 @@ mod cli;
 mod count;
 mod github;
 mod report;
-mod rust_tests;
+mod rust_inline;
 mod summary;
 mod target;
 
